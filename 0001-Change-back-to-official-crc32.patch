@@ -1,0 +1,136 @@
+From e80ca55b53e5e6f53deed5c7842e7b7da95e1dc7 Mon Sep 17 00:00:00 2001
+From: Klaus Post <klauspost@gmail.com>
+Date: Sun, 2 Apr 2017 16:06:18 +0200
+Subject: [PATCH] Change back to official crc32
+
+All changed are merged in Go 1.7.
+---
+ README.md           |  1 +
+ gzip/gunzip.go      |  2 +-
+ gzip/gunzip_test.go | 34 ++++++++++++++++++++++++++++++++++
+ gzip/gzip.go        |  2 +-
+ zip/reader.go       |  3 +--
+ zip/writer.go       |  3 +--
+ 6 files changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/README.md b/README.md
+index 176d51c..4834c96 100644
+--- a/README.md
++++ b/README.md
+@@ -12,6 +12,7 @@ It offers slightly better compression at
+ [![Build Status](https://travis-ci.org/klauspost/compress.svg?branch=master)](https://travis-ci.org/klauspost/compress)
+ 
+ # changelog
++* Apr 02, 2017: Change back to official crc32, since changes were merged in Go 1.7.
+ * Jan 14, 2017: Reduce stack pressure due to array copies. See [Issue #18625(https://github.com/golang/go/issues/18625).
+ * Oct 25, 2016: Level 2-4 have been rewritten and now offers significantly better performance than before.
+ * Oct 20, 2016: Port zlib changes from Go 1.7 to fix zlib writer issue. Please update.
+diff --git a/gzip/gunzip.go b/gzip/gunzip.go
+index e73fab3..568b5d4 100644
+--- a/gzip/gunzip.go
++++ b/gzip/gunzip.go
+@@ -10,11 +10,11 @@ import (
+ 	"bufio"
+ 	"encoding/binary"
+ 	"errors"
++	"hash/crc32"
+ 	"io"
+ 	"time"
+ 
+ 	"github.com/klauspost/compress/flate"
+-	"github.com/klauspost/crc32"
+ )
+ 
+ const (
+diff --git a/gzip/gunzip_test.go b/gzip/gunzip_test.go
+index c200ab1..bc7ca92 100644
+--- a/gzip/gunzip_test.go
++++ b/gzip/gunzip_test.go
+@@ -680,3 +680,37 @@ func BenchmarkGunzipStdlib(b *testing.B) {
+ 		}
+ 	}
+ }
++func TestTruncatedGunzip(t *testing.T) {
++	in := []byte(strings.Repeat("ASDFASDFASDFASDFASDF", 1000))
++	var buf bytes.Buffer
++	enc := NewWriter(&buf)
++	_, err := enc.Write(in)
++	if err != nil {
++		t.Fatal(err)
++	}
++	enc.Close()
++	testdata := buf.Bytes()
++	for i := 5; i < len(testdata); i += 10 {
++		timer := time.NewTimer(time.Second)
++		done := make(chan struct{})
++		fail := make(chan struct{})
++		go func() {
++			r, err := NewReader(bytes.NewBuffer(testdata[:i]))
++			if err == nil {
++				b, err := ioutil.ReadAll(r)
++				if err == nil && !bytes.Equal(testdata[:i], b) {
++					close(fail)
++				}
++			}
++			close(done)
++		}()
++		select {
++		case <-timer.C:
++			t.Fatal("Timeout decoding")
++		case <-fail:
++			t.Fatal("No error, but mismatch")
++		case <-done:
++			timer.Stop()
++		}
++	}
++}
+diff --git a/gzip/gzip.go b/gzip/gzip.go
+index a0f3ed0..7da7ee7 100644
+--- a/gzip/gzip.go
++++ b/gzip/gzip.go
+@@ -7,10 +7,10 @@ package gzip
+ import (
+ 	"errors"
+ 	"fmt"
++	"hash/crc32"
+ 	"io"
+ 
+ 	"github.com/klauspost/compress/flate"
+-	"github.com/klauspost/crc32"
+ )
+ 
+ // These constants are copied from the flate package, so that code that imports
+diff --git a/zip/reader.go b/zip/reader.go
+index 27199dd..9a0e20d 100644
+--- a/zip/reader.go
++++ b/zip/reader.go
+@@ -10,10 +10,9 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"hash"
++	"hash/crc32"
+ 	"io"
+ 	"os"
+-
+-	"github.com/klauspost/crc32"
+ )
+ 
+ var (
+diff --git a/zip/writer.go b/zip/writer.go
+index 5843958..5ce66e6 100644
+--- a/zip/writer.go
++++ b/zip/writer.go
+@@ -9,9 +9,8 @@ import (
+ 	"encoding/binary"
+ 	"errors"
+ 	"hash"
++	"hash/crc32"
+ 	"io"
+-
+-	"github.com/klauspost/crc32"
+ )
+ 
+ // TODO(adg): support zip file comments
+-- 
+2.14.3
+

@@ -1,0 +1,26 @@
+From b88785bfd699aa994985ea91b90ee8a1721c3fe1 Mon Sep 17 00:00:00 2001
+From: Klaus Post <klauspost@gmail.com>
+Date: Wed, 10 Jan 2018 21:30:47 +0100
+Subject: [PATCH] Fix "Println arg list ends with redundant newline" (#83)
+
+Even though this is still being debated in https://github.com/golang/go/issues/18085 we might as well change it.
+---
+ gzip/example_test.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gzip/example_test.go b/gzip/example_test.go
+index e32346b..ce29e9b 100644
+--- a/gzip/example_test.go
++++ b/gzip/example_test.go
+@@ -98,7 +98,7 @@ func ExampleReader_Multistream() {
+ 			log.Fatal(err)
+ 		}
+ 
+-		fmt.Println("\n")
++		fmt.Print("\n\n")
+ 
+ 		err = zr.Reset(&buf)
+ 		if err == io.EOF {
+-- 
+2.14.3
+
